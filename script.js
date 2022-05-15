@@ -23,8 +23,8 @@ class GridSquare{
         -1: none
         0: north
         1: east
-        2: west
-        3: south
+        2: south
+        3: west
         */
         this.x = x;
         this.y = y;
@@ -99,8 +99,10 @@ class Game {
         this.dirChanged = false;
         this.isDead = false;
         this.head =null;
+        this.food = null;
         this.tail = [];
         this.drawn = drawn;
+        this.growth = 0;
     }
 
     setupGrid(){
@@ -122,6 +124,7 @@ class Game {
     drawGrid(){
         for(var i=0; i<this.grid.length; i++){
             this.grid[i].chooseColor();
+            if(this.isDead && (this.grid[i].type==1||this.grid[i].type==2)) this.grid[i].color = "yellow";
             this.grid[i].draw();
         }
     }
@@ -149,20 +152,22 @@ class Game {
 
     deathCheck(){
         for(var i=0; i<this.tail.length; i++){
+            //console.log(`Head: ${this.head.id}, Tail ${i}: ${this.tail[i].id}`);
             if(this.tail[i].id == this.head.id){ 
                 console.log("death by tail");
                 return true;
             }
-            else return false;
+        }
+        return false;
+    }
+
+    foodCheck(){
+        if(this.head.id == this.food.id){
+            this.eatFood();
         }
     }
 
     moveSnake(){
-        if(headNextPos==-1){
-            this.isDead = true;
-            console.log("died by wall");
-            return;
-        }
         if(this.dirChanged){
             for(var i=0; i<this.tail.length; i++){
                 if(this.tail[i].turnDir==-1) this.tail[i].turnDir = this.oldSnakeDir;
@@ -170,12 +175,17 @@ class Game {
             this.dirChanged = false;
         }
         for(var i=0; i<this.grid.length; i++){
-            if(this.grid[i].type==0){
+            if(this.grid[i].type==0 || this.grid[i].type==3){
                 this.grid[i].turnDir = -1;
                 //console.log(`Returned square ${i} to direction -1`);
             }
         }
         var headNextPos = this.getNextSquare(this.head.id, this.snakeDir);
+        if(headNextPos==-1){
+            this.isDead = true;
+            console.log("died by wall");
+            return;
+        }
         this.head.setEmpty();
         this.head = this.grid[headNextPos];
         this.head.setHead();
@@ -187,7 +197,8 @@ class Game {
             this.tail[i] = this.grid[next];
             this.tail[i].setTail();
         }
-        this.isDead = this.deathCheck();
+        this.foodCheck();
+        if(!(this.isDead)) this.isDead = this.deathCheck();
     }
 
     turn(dir){
@@ -196,8 +207,36 @@ class Game {
         this.snakeDir = dir;
     }
 
+    spawnFood(){
+        var rand = this.tail[0].id;
+        for(var i=0; i<this.tail.length; i++){
+            while(this.head.id==rand || this.tail[i].id==rand){
+                rand = Math.floor(Math.random()*this.grid.length);
+            }
+        }
+        this.grid[rand].setFood();
+        this.food = this.grid[rand];
+    }
+
+    eatFood(){
+        this.food.setEmpty();
+        this.spawnFood();
+        this.growth++;
+        var tailEnd = this.tail[this.tail.length-1];
+        var oppDir = this.snakeDir;
+        if(tailEnd.turnDir>=0) oppDir = tailEnd.getOppositeDir();
+        else if(this.snakeDir<2) oppDir = this.snakeDir+2;
+        else oppDir = this.snakeDir-2;
+        var loc = this.getNextSquare(tailEnd.id, oppDir);
+        if(loc==-1) return;
+        var nTail = this.grid[loc];
+        nTail.setTail();
+        this.tail.push(nTail);
+        nTail.turnDir = tailEnd.turnDir;
+    }
+
     update(){
-        if(!this.isDead) this.moveSnake();
+        if(!(this.isDead)) this.moveSnake();
         if(this.drawn) this.drawGrid();
     }
 
@@ -244,6 +283,7 @@ function normalSetup(){
     game.setupGrid();
     game.placeSnake();
     game.drawGrid();
+    game.spawnFood();
     setInterval(function(){
         game.update();
     }, GAME_SPEED);
